@@ -33,6 +33,10 @@ jobs:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
         run: python tmdb_rss.py
 
+            - name: Kombi-Feed generieren
+        run: python mixed_feed.py
+  
+
       - name: Startseite mitkopieren
         run: cp index.html public/index.html
 
