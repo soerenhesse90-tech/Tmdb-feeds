@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TMDB RSS Feeds</title>
+  <style>
+    :root { --bg:#0d0d0f; --card:#18181b; --text:#f4f4f5; --muted:#a1a1aa; --accent:#e50914; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+           background:var(--bg); color:var(--text); padding:2rem 1.25rem; }
+    h1 { font-size:1.5rem; margin:0 0 .25rem; }
+    p.sub { color:var(--muted); margin:0 0 2rem; font-size:.95rem; }
+    .feed { background:var(--card); border-radius:14px; padding:1.1rem 1.2rem; margin-bottom:1rem;
+            border-left:4px solid var(--accent); }
+    .feed h2 { font-size:1.05rem; margin:0 0 .5rem; }
+    .feed a { color:var(--accent); text-decoration:none; word-break:break-all; font-size:.9rem; }
+    .feed a:hover { text-decoration:underline; }
+    footer { color:var(--muted); font-size:.8rem; margin-top:2rem; }
+  </style>
+</head>
+<body>
+  <h1>TMDB RSS Feeds</h1>
+  <p class="sub">Automatisch aktualisiert aus TMDB-Daten. Diese Links ins RSS-Widget einsetzen.</p>
+
+  <div class="feed">
+    <h2>🎬 Demnächst im Kino</h2>
+    <a href="./kino_demnaechst.xml">./kino_demnaechst.xml</a>
+  </div>
+  <div class="feed">
+    <h2>📺 Neue Serien</h2>
+    <a href="./neue_serien.xml">./neue_serien.xml</a>
+  </div>
+  <div class="feed">
+    <h2>📰 Film-News (Trending)</h2>
+    <a href="./film_news.xml">./film_news.xml</a>
+  </div>
+
+  <footer>Daten von The Movie Database (TMDB). Dieses Produkt nutzt die TMDB-API, ist aber nicht von TMDB unterstützt oder zertifiziert.</footer>
+</body>
+</html>
