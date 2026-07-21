@@ -87,7 +87,13 @@ def render(e, pub_dt):
 def build():
     hessen = data_news(HESSEN, "Hessen", "\U0001F5DE\uFE0F", "hessenschau.de")
     bremen = data_news(BREMEN, "Bremen", "\u2693", "butenunbinnen.de")
-    ordered = interleave(hessen, bremen, data_dogs())
+    dogs   = data_dogs()
+    # Auf gleiche Anzahl kuerzen -> jede Runde Hessen/Bremen/Hund ist vollstaendig
+    nonempty = [l for l in (hessen, bremen, dogs) if l]
+    if nonempty:
+        n = min(len(l) for l in nonempty)
+        hessen, bremen, dogs = hessen[:n], bremen[:n], dogs[:n]
+    ordered = interleave(hessen, bremen, dogs)
     base = now_utc()
     items = [render(e, base - timedelta(minutes=i)) for i, e in enumerate(ordered)]
     head = ['<?xml version="1.0" encoding="UTF-8"?>',
