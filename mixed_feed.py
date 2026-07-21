@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Kombi-Feed: Hessen-News + Laura-Fun-Facts + suesse Hundebilder -> public/hessen_laura_hunde.xml"""
+"""Kombi-Feed, abwechselnd sortiert: News, Fun Fact, Hundebild -> public/hessen_laura_hunde.xml"""
 import sys, os, json, hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 from xml.sax.saxutils import escape
@@ -45,37 +45,23 @@ def http_get(url, as_json=False):
         print(f"  ! Fehler ({url}): {e}", file=sys.stderr)
         return None
 
-def make_item(title, link, guid, body, pub_dt):
-    lines = ["    <item>", f"      <title>{escape(title)}</title>"]
-    if link: lines.append(f"      <link>{escape(link)}</link>")
-    lines += [f'      <guid isPermaLink="false">{escape(guid)}</guid>',
-              f"      <description><![CDATA[{cdata(body)}]]></description>",
-              f"      <pubDate>{rfc822(pub_dt)}</pubDate>", "    </item>"]
-    return "\n".join(lines)
-
-def items_hessen():
+def data_hessen():
     raw = http_get(HESSEN)
     if not raw: return []
     try: root = ET.fromstring(raw)
     except ET.ParseError: return []
     out = []
-    from email.utils import parsedate_to_datetime
     for it in root.findall(".//item")[:NEWS_MAX]:
         title = (it.findtext("title") or "Ohne Titel").strip()
         link = (it.findtext("link") or "").strip()
         desc = (it.findtext("description") or "").strip()
         if len(desc) > 300: desc = desc[:300].rsplit(" ", 1)[0] + " \u2026"
-        pub = it.findtext("pubDate")
-        try:
-            pub_dt = parsedate_to_datetime(pub) if pub else now_utc()
-            if pub_dt.tzinfo is None: pub_dt = pub_dt.replace(tzinfo=timezone.utc)
-        except (TypeError, ValueError): pub_dt = now_utc()
         body = f'<p>{escape(desc)}</p><p><a href="{escape(link)}">Weiterlesen bei hessenschau.de</a></p>'
         guid = "hessen-" + hashlib.md5((link or title).encode()).hexdigest()[:12]
-        out.append(make_item(f"\U0001F5DE\uFE0F [Hessen] {title}", link, guid, body, pub_dt))
+        out.append({"title": f"\U0001F5DE\uFE0F [Hessen] {title}", "link": link, "guid": guid, "body": body})
     return out
 
-def items_laura():
+def data_laura():
     seed = int(now_utc().strftime("%Y%m%d")); n = len(LAURA_FACTS)
     seen, chosen = set(), []
     for i in range(LAURA_PER_DAY):
@@ -83,27 +69,48 @@ def items_laura():
         while p in seen: p = (p + 1) % n
         seen.add(p); chosen.append(LAURA_FACTS[p])
     today = now_utc().strftime("%Y%m%d")
-    return [make_item(f"\u2728 [Laura] Fun Fact #{i}", None, f"laura-{today}-{i}",
-                      f"<p>{escape(f)}</p>", now_utc()) for i, f in enumerate(chosen, 1)]
+    return [{"title": f"\u2728 [Laura] Fun Fact #{i}", "link": None,
+             "guid": f"laura-{today}-{i}", "body": f"<p>{escape(f)}</p>"}
+            for i, f in enumerate(chosen, 1)]
 
-def items_dogs():
+def data_dogs():
     data = http_get(DOG_API, as_json=True)
     if not data or data.get("status") != "success": return []
     out = []
     for i, url in enumerate(data.get("message", []), 1):
-        body = f'<p><img src="{escape(url)}" alt="Suesser Hund"/></p>'
-        guid = "dog-" + hashlib.md5(url.encode()).hexdigest()[:12]
-        out.append(make_item(f"\U0001F436 S\u00fc\u00dfer Hund #{i}", url, guid, body, now_utc()))
+        out.append({"title": f"\U0001F436 S\u00fc\u00dfer Hund #{i}", "link": url,
+                    "guid": "dog-" + hashlib.md5(url.encode()).hexdigest()[:12],
+                    "body": f'<p><img src="{escape(url)}" alt="Suesser Hund"/></p>'})
     return out
 
+def interleave(*lists):
+    pools, result, i = [list(l) for l in lists], [], 0
+    while any(pools):
+        pool = pools[i % len(pools)]
+        if pool: result.append(pool.pop(0))
+        i += 1
+    return result
+
+def render(entry, pub_dt):
+    lines = ["    <item>", f"      <title>{escape(entry['title'])}</title>"]
+    if entry["link"]: lines.append(f"      <link>{escape(entry['link'])}</link>")
+    lines += [f'      <guid isPermaLink="false">{escape(entry["guid"])}</guid>',
+              f"      <description><![CDATA[{cdata(entry['body'])}]]></description>",
+              f"      <pubDate>{rfc822(pub_dt)}</pubDate>", "    </item>"]
+    return "\n".join(lines)
+
 def build():
-    items = items_hessen() + items_laura() + items_dogs()
+    # Reihenfolge: News, Fun Fact, Hundebild, News, Fun Fact, Hundebild, ...
+    ordered = interleave(data_hessen(), data_laura(), data_dogs())
+    base = now_utc()
+    # Zeitstempel absteigend staffeln, damit die Reihenfolge auch bei Datums-Sortierung haelt
+    items = [render(e, base - timedelta(minutes=i)) for i, e in enumerate(ordered)]
     head = ['<?xml version="1.0" encoding="UTF-8"?>',
             '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">', "  <channel>",
             "    <title>Hessen, Laura &amp; Hunde</title>",
             "    <link>https://www.hessenschau.de</link>",
             "    <description>Hessen-News, Fun Facts zu Laura und suesse Hundebilder</description>",
-            "    <language>de-DE</language>", f"    <lastBuildDate>{rfc822(now_utc())}</lastBuildDate>",
+            "    <language>de-DE</language>", f"    <lastBuildDate>{rfc822(base)}</lastBuildDate>",
             "    <ttl>360</ttl>"]
     xml = "\n".join(head) + "\n" + "\n".join(items) + "\n  </channel>\n</rss>\n"
     os.makedirs(OUTDIR, exist_ok=True)
